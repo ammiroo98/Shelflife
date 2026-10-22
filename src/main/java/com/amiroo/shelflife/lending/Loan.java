@@ -1,0 +1,55 @@
+package com.amiroo.shelflife.lending;
+
+import java.time.LocalDate;
+import java.util.Objects;
+import java.util.UUID;
+
+import com.amiroo.shelflife.catalog.Copy;
+import com.amiroo.shelflife.membership.Member;
+
+/**
+ * A loan's recorded data. A null returnedOn means the copy has not been returned.
+ * Borrowing rules and date ordering are intentionally not enforced here yet.
+ */
+public class Loan {
+
+    private final UUID id;
+    private final Copy copy;
+    private final Member member;
+    private final LocalDate borrowedOn;
+    private final LocalDate dueOn;
+    private final LocalDate returnedOn;
+
+    public Loan(UUID id, Copy copy, Member member, LocalDate borrowedOn, LocalDate dueOn, LocalDate returnedOn) {
+        this.id = Objects.requireNonNull(id, "id");
+        this.copy = Objects.requireNonNull(copy, "copy");
+        this.member = Objects.requireNonNull(member, "member");
+        this.borrowedOn = Objects.requireNonNull(borrowedOn, "borrowedOn");
+        this.dueOn = Objects.requireNonNull(dueOn, "dueOn");
+        this.returnedOn = returnedOn;
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public Copy getCopy() {
+        return copy;
+    }
+
+    public Member getMember() {
+        return member;
+    }
+
+    public LocalDate getBorrowedOn() {
+        return borrowedOn;
+    }
+
+    public LocalDate getDueOn() {
+        return dueOn;
+    }
+
+    public LocalDate getReturnedOn() {
+        return returnedOn;
+    }
+}
