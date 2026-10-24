@@ -17,6 +17,9 @@ public class Member {
         this.id = Objects.requireNonNull(id, "id");
         this.name = Objects.requireNonNull(name, "name");
         this.status = Objects.requireNonNull(status, "status");
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("name must not be blank.");
+        }
     }
 
     public UUID getId() {

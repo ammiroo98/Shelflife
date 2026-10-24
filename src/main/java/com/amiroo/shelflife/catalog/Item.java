@@ -11,6 +11,9 @@ public class Item {
     public Item(UUID id, String title) {
         this.id = Objects.requireNonNull(id, "id");
         this.title = Objects.requireNonNull(title, "title");
+        if (title.isBlank()) {
+            throw new IllegalArgumentException("title must not be blank.");
+        }
     }
 
     public UUID getId() {

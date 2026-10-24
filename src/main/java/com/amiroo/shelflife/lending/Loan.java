@@ -25,6 +25,12 @@ public class Loan {
         this.member = Objects.requireNonNull(member, "member");
         this.borrowedOn = Objects.requireNonNull(borrowedOn, "borrowedOn");
         this.dueOn = Objects.requireNonNull(dueOn, "dueOn");
+        if (dueOn.isBefore(borrowedOn)) {
+            throw new IllegalArgumentException("dueOn must not be before borrowedOn.");
+        }
+        if (returnedOn != null && returnedOn.isBefore(borrowedOn)) {
+            throw new IllegalArgumentException("returnedOn must not be before borrowedOn.");
+        }
         this.returnedOn = returnedOn;
     }
 
@@ -60,6 +66,9 @@ public class Loan {
         Objects.requireNonNull(returnedOn, "returnedOn");
         if (!isActive()) {
             throw new BorrowingException("Loan has already been returned.");
+        }
+        if (returnedOn.isBefore(borrowedOn)) {
+            throw new IllegalArgumentException("returnedOn must not be before borrowedOn.");
         }
         this.returnedOn = returnedOn;
     }
