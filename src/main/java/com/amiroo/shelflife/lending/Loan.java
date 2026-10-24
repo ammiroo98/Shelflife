@@ -9,7 +9,6 @@ import com.amiroo.shelflife.membership.Member;
 
 /**
  * A loan's recorded data. A null returnedOn means the copy has not been returned.
- * Borrowing rules and date ordering are intentionally not enforced here yet.
  */
 public class Loan {
 
@@ -18,7 +17,7 @@ public class Loan {
     private final Member member;
     private final LocalDate borrowedOn;
     private final LocalDate dueOn;
-    private final LocalDate returnedOn;
+    private LocalDate returnedOn;
 
     public Loan(UUID id, Copy copy, Member member, LocalDate borrowedOn, LocalDate dueOn, LocalDate returnedOn) {
         this.id = Objects.requireNonNull(id, "id");
@@ -51,5 +50,17 @@ public class Loan {
 
     public LocalDate getReturnedOn() {
         return returnedOn;
+    }
+
+    public boolean isActive() {
+        return returnedOn == null;
+    }
+
+    public void returnOn(LocalDate returnedOn) {
+        Objects.requireNonNull(returnedOn, "returnedOn");
+        if (!isActive()) {
+            throw new BorrowingException("Loan has already been returned.");
+        }
+        this.returnedOn = returnedOn;
     }
 }

@@ -10,8 +10,45 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LoanTest {
+
+    @Test
+    void activeLoanCanBeReturnedOnlyOnce() {
+        Item item = new Item(UUID.randomUUID(), "The Hobbit");
+        Copy copy = new Copy(UUID.randomUUID(), item);
+        Member member = new Member(UUID.randomUUID(), "Alex");
+        LocalDate borrowedOn = LocalDate.of(2026, 10, 22);
+        LocalDate dueOn = LocalDate.of(2026, 11, 5);
+        LocalDate returnedOn = LocalDate.of(2026, 11, 2);
+        Loan loan = new Loan(UUID.randomUUID(), copy, member, borrowedOn, dueOn, null);
+
+        assertThat(loan.isActive()).isTrue();
+        loan.returnOn(returnedOn);
+
+        assertThat(loan.isActive()).isFalse();
+        assertThat(loan.getReturnedOn()).isEqualTo(returnedOn);
+        assertThatThrownBy(() -> loan.returnOn(returnedOn.plusDays(1)))
+                .isInstanceOf(BorrowingException.class)
+                .hasMessage("Loan has already been returned.");
+        assertThat(loan.getReturnedOn()).isEqualTo(returnedOn);
+        assertThat(loan.getBorrowedOn()).isEqualTo(borrowedOn);
+        assertThat(loan.getDueOn()).isEqualTo(dueOn);
+    }
+
+    @Test
+    void nullReturnDateCannotChangeAnActiveLoan() {
+        Item item = new Item(UUID.randomUUID(), "The Hobbit");
+        Copy copy = new Copy(UUID.randomUUID(), item);
+        Member member = new Member(UUID.randomUUID(), "Alex");
+        Loan loan = new Loan(UUID.randomUUID(), copy, member,
+                LocalDate.of(2026, 10, 22), LocalDate.of(2026, 11, 5), null);
+
+        assertThatNullPointerException().isThrownBy(() -> loan.returnOn(null))
+                .withMessage("returnedOn");
+        assertThat(loan.isActive()).isTrue();
+    }
 
     @Test
     void loanLinksMemberToOneSpecificCopyOfASharedItem() {

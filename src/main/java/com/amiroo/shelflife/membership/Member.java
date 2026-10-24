@@ -7,10 +7,16 @@ public class Member {
 
     private final UUID id;
     private final String name;
+    private final MemberStatus status;
 
     public Member(UUID id, String name) {
+        this(id, name, MemberStatus.ACTIVE);
+    }
+
+    public Member(UUID id, String name, MemberStatus status) {
         this.id = Objects.requireNonNull(id, "id");
         this.name = Objects.requireNonNull(name, "name");
+        this.status = Objects.requireNonNull(status, "status");
     }
 
     public UUID getId() {
@@ -19,5 +25,9 @@ public class Member {
 
     public String getName() {
         return name;
+    }
+
+    public MemberStatus getStatus() {
+        return status;
     }
 }
