@@ -13,6 +13,13 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 class ItemTest {
 
+    @Test
+    void idMustNotBeNull() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> new Item(null, "The Hobbit"))
+                .withMessage("id");
+    }
+
     @ParameterizedTest
     @EmptySource
     @ValueSource(strings = {" ", "\t\n", "\u2003"})
