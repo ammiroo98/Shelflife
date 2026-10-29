@@ -20,11 +20,67 @@ import static org.assertj.core.api.Assertions.assertThat;
 @EnabledIfEnvironmentVariable(named = "SHELFLIFE_POSTGRES_TESTS", matches = "true")
 class LoanRepositoryTest {
 
+    private final LocalDate borrowedOn = LocalDate.of(2026, 10, 22);
+    private final LocalDate dueOn = LocalDate.of(2026, 11, 5);
+
     @Autowired
     private LoanRepository repository;
 
     @Autowired
     private TestEntityManager entityManager;
+
+    @Test
+    void countsOnlyActiveLoansForTheSpecifiedMemberId() {
+        Item item = new Item(UUID.randomUUID(), "The Hobbit");
+        entityManager.persist(item);
+        Member member = new Member(UUID.randomUUID(), "Alex");
+        Member otherMember = new Member(UUID.randomUUID(), "Sam");
+        Member returnedOnlyMember = new Member(UUID.randomUUID(), "Taylor");
+        Member memberWithoutLoans = new Member(UUID.randomUUID(), "Robin");
+        entityManager.persist(member);
+        entityManager.persist(otherMember);
+        entityManager.persist(returnedOnlyMember);
+        entityManager.persist(memberWithoutLoans);
+        persistLoan(item, member, null);
+        persistLoan(item, member, null);
+        persistLoan(item, member, borrowedOn.plusDays(1));
+        persistLoan(item, otherMember, null);
+        persistLoan(item, returnedOnlyMember, borrowedOn.plusDays(1));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(repository.countByMember_IdAndReturnedOnIsNull(member.getId())).isEqualTo(2);
+        assertThat(repository.countByMember_IdAndReturnedOnIsNull(otherMember.getId())).isEqualTo(1);
+        assertThat(repository.countByMember_IdAndReturnedOnIsNull(returnedOnlyMember.getId())).isZero();
+        assertThat(repository.countByMember_IdAndReturnedOnIsNull(memberWithoutLoans.getId())).isZero();
+    }
+
+    @Test
+    void detectsActiveLoanOnlyForTheSpecifiedCopyId() {
+        Item item = new Item(UUID.randomUUID(), "The Hobbit");
+        entityManager.persist(item);
+        Member member = new Member(UUID.randomUUID(), "Alex");
+        entityManager.persist(member);
+        Copy borrowedCopy = persistLoan(item, member, null);
+        entityManager.persist(new Loan(UUID.randomUUID(), borrowedCopy, member,
+                borrowedOn.minusDays(14), borrowedOn, borrowedOn.minusDays(1)));
+        Copy returnedCopy = persistLoan(item, member, borrowedOn.plusDays(1));
+        Copy copyWithoutLoans = new Copy(UUID.randomUUID(), item);
+        entityManager.persist(copyWithoutLoans);
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(repository.existsByCopy_IdAndReturnedOnIsNull(borrowedCopy.getId())).isTrue();
+        assertThat(repository.existsByCopy_IdAndReturnedOnIsNull(returnedCopy.getId())).isFalse();
+        assertThat(repository.existsByCopy_IdAndReturnedOnIsNull(copyWithoutLoans.getId())).isFalse();
+    }
+
+    private Copy persistLoan(Item item, Member member, LocalDate returnedOn) {
+        Copy copy = new Copy(UUID.randomUUID(), item);
+        entityManager.persist(copy);
+        entityManager.persist(new Loan(UUID.randomUUID(), copy, member, borrowedOn, dueOn, returnedOn));
+        return copy;
+    }
 
     @Test
     void savesAndReloadsActiveLoanWithItsCopyItemAndMember() {
@@ -35,8 +91,6 @@ class LoanRepositoryTest {
         Member member = new Member(UUID.randomUUID(), "Alex");
         entityManager.persistAndFlush(member);
         UUID id = UUID.randomUUID();
-        LocalDate borrowedOn = LocalDate.of(2026, 10, 22);
-        LocalDate dueOn = LocalDate.of(2026, 11, 5);
         Loan loan = new Loan(id, copy, member, borrowedOn, dueOn, null);
 
         Loan saved = repository.saveAndFlush(loan);
