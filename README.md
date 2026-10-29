@@ -1,7 +1,8 @@
 # ShelfLife
 
 A Java 21 / Spring Boot 3.5.13 library management application.
-`Item`, `Copy`, and `Member` are persisted. Each Copy references one required Item.
+`Item`, `Copy`, `Member`, and `Loan` are persisted. Each Copy references one required Item.
+Each Loan references one required Copy and Member, with no cascade persistence.
 Member status is stored by enum name (`ACTIVE` or `SUSPENDED`), not ordinal.
 
 ## Requirements
@@ -62,7 +63,8 @@ SHELFLIFE_POSTGRES_TESTS=true ./mvnw clean verify
 
 The repository tests save, flush, clear the persistence context, and reload entities
 to verify database round trips with caller-assigned UUIDs, including the Copy-to-Item
-relationship and a suspended Member's status. They use the real database with no embedded replacement.
+relationship, a suspended Member's status, and an active Loan's dates and relationships.
+They use the real database with no embedded replacement.
 Their data transactions roll back, but Hibernate schema
 updates can remain, so use a dedicated test database.
 
