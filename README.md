@@ -1,7 +1,7 @@
 # ShelfLife
 
 A Java 21 / Spring Boot 3.5.13 library management application.
-Only `Item` is persisted in this increment.
+`Item` and `Copy` are persisted. Each Copy references one required Item.
 
 ## Requirements
 
@@ -48,7 +48,7 @@ The application starts on port 8080. Stop with Ctrl+C. No REST endpoints exist y
 ```
 
 The normal build runs plain domain/business tests without PostgreSQL.
-The complete Spring context test and real PostgreSQL repository test are explicitly
+The complete Spring context test and real PostgreSQL repository tests are explicitly
 skipped unless `SHELFLIFE_POSTGRES_TESTS=true`.
 A successful normal build therefore does not verify persistence or application startup.
 
@@ -59,9 +59,10 @@ existing PostgreSQL test database, then run:
 SHELFLIFE_POSTGRES_TESTS=true ./mvnw clean verify
 ```
 
-The repository test saves, flushes, clears the persistence context, and reloads an Item
-to verify a database round trip with its caller-assigned UUID. It uses the real database,
-with no embedded replacement. Its data transaction rolls back, but Hibernate schema
+The repository tests save, flush, clear the persistence context, and reload entities
+to verify database round trips with caller-assigned UUIDs, including the Copy-to-Item
+relationship. They use the real database with no embedded replacement.
+Their data transactions roll back, but Hibernate schema
 updates can remain, so use a dedicated test database.
 
 On Windows, use `mvnw.cmd` in place of `./mvnw` and set environment variables using your shell.
