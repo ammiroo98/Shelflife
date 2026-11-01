@@ -5,6 +5,20 @@ A Java 21 / Spring Boot 3.5.13 library management application.
 Each Loan references one required Copy and Member, with no cascade persistence.
 Member status is stored by enum name (`ACTIVE` or `SUSPENDED`), not ordinal.
 
+CheckoutService is a Spring service. Its transactional checkout checks stored active-loan
+counts and copy availability, then saves and returns the new Loan through LoanRepository.
+It does not yet protect against concurrent checkout attempts. Call it through the
+Spring-managed bean for transaction interception; direct construction in unit tests
+does not exercise transactions.
+
+Borrowing configuration in `application.properties`:
+
+- `shelflife.lending.max-active-loans=2`
+- `shelflife.lending.loan-duration-days=14`
+
+Both values must be positive and can be overridden with Spring configuration.
+The injected application Clock uses the JVM's default time zone; tests use a fixed Clock.
+
 ## Requirements
 
 - JDK 21 with `JAVA_HOME` configured
