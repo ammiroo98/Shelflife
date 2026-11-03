@@ -18,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -35,6 +36,20 @@ class CheckoutServiceTest {
     private final Member member = new Member(UUID.randomUUID(), "Alex");
     private final Item item = new Item(UUID.randomUUID(), "The Hobbit");
     private final Copy copy = new Copy(UUID.randomUUID(), item);
+
+    @Test
+    void nullMemberIsRejectedBeforeRepositoryAccess() {
+        assertThatNullPointerException().isThrownBy(() -> service.checkout(null, copy))
+                .withMessage("member");
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void nullCopyIsRejectedBeforeRepositoryAccess() {
+        assertThatNullPointerException().isThrownBy(() -> service.checkout(member, null))
+                .withMessage("copy");
+        verifyNoInteractions(repository);
+    }
 
     @ParameterizedTest
     @ValueSource(longs = {0, 1})

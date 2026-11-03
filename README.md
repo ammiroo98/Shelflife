@@ -11,6 +11,11 @@ It does not yet protect against concurrent checkout attempts. Call it through th
 Spring-managed bean for transaction interception; direct construction in unit tests
 does not exercise transactions.
 
+ReturnService loads a Loan by UUID in a Spring transaction and delegates to
+`Loan.returnOn(LocalDate.now(clock))`. Hibernate dirty checking writes the changed
+return date at transaction commit; the service does not call `save` or flush manually.
+Missing loans produce a BorrowingException. Return concurrency protection is deferred.
+
 Borrowing configuration in `application.properties`:
 
 - `shelflife.lending.max-active-loans=2`
@@ -55,7 +60,38 @@ After configuring the database environment:
 ./mvnw spring-boot:run
 ```
 
-The application starts on port 8080. Stop with Ctrl+C. No REST endpoints exist yet.
+The application starts on port 8080. Stop with Ctrl+C.
+
+## Basic REST API
+
+All routes use `/api/v1`. POST inputs currently use request parameters (query string
+or form fields); responses are JSON entities. JSON DTOs/mapping, Bean Validation,
+and centralized error handling are deferred to the following increments.
+
+| Method | Path | Inputs / purpose |
+| --- | --- | --- |
+| POST | `/api/v1/items` | Required `title`; create catalog item |
+| GET | `/api/v1/items/{id}` | Read item |
+| POST | `/api/v1/copies` | Required `itemId`; create physical copy of an existing item |
+| GET | `/api/v1/copies/{id}` | Read copy and its item |
+| POST | `/api/v1/members` | Required `name`; create member with the existing ACTIVE default |
+| GET | `/api/v1/members/{id}` | Read member |
+| POST | `/api/v1/loans` | Required `memberId`, `copyId`; delegate checkout to CheckoutService |
+| GET | `/api/v1/loans/{id}` | Read loan |
+| POST | `/api/v1/loans/{id}/return` | Delegate return to ReturnService |
+
+Create/checkout responses use 201 with a Location header. Reads and successful returns
+use 200. Controller lookups return 404 when absent; Spring MVC rejects missing required
+parameters and malformed UUIDs with 400. Domain/business exceptions retain default
+server-error handling for now, including a missing loan in ReturnService; the error
+contract is intentionally unfinished until Increment 4.4.
+
+Example: `curl -X POST 'http://localhost:8080/api/v1/items?title=The%20Hobbit'`.
+
+The temporary entity responses include nested relationships. Jackson ignores Hibernate
+proxy metadata; lazy relationship serialization relies on the current default
+Open EntityManager in View behavior. Review this exposure and fetching strategy when
+introducing DTOs in Increment 4.2. No list/update/delete routes are added yet.
 
 ## Tests and build
 
