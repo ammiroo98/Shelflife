@@ -4,8 +4,6 @@ import java.time.LocalDate;
 import java.util.Objects;
 import java.util.UUID;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
 import com.amiroo.shelflife.catalog.Copy;
 import com.amiroo.shelflife.membership.Member;
 
@@ -20,7 +18,6 @@ import jakarta.persistence.Table;
 /**
  * A loan's recorded data. A null returnedOn means the copy has not been returned.
  */
-@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Table(name = "loans")
 public class Loan {

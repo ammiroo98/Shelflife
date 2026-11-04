@@ -64,34 +64,50 @@ The application starts on port 8080. Stop with Ctrl+C.
 
 ## Basic REST API
 
-All routes use `/api/v1`. POST inputs currently use request parameters (query string
-or form fields); responses are JSON entities. JSON DTOs/mapping, Bean Validation,
-and centralized error handling are deferred to the following increments.
+All routes use `/api/v1`. Creation and checkout accept JSON request bodies with
+`Content-Type: application/json`. Read/creation/return responses are flat JSON DTOs,
+not JPA entities. IDs are assigned by the application; clients supply only relationship
+IDs and creation fields. New members retain the existing ACTIVE default.
 
-| Method | Path | Inputs / purpose |
+| Method | Path | JSON request / purpose |
 | --- | --- | --- |
-| POST | `/api/v1/items` | Required `title`; create catalog item |
+| POST | `/api/v1/items` | `{"title":"The Hobbit"}` |
 | GET | `/api/v1/items/{id}` | Read item |
-| POST | `/api/v1/copies` | Required `itemId`; create physical copy of an existing item |
-| GET | `/api/v1/copies/{id}` | Read copy and its item |
-| POST | `/api/v1/members` | Required `name`; create member with the existing ACTIVE default |
+| POST | `/api/v1/copies` | `{"itemId":"<item UUID>"}` |
+| GET | `/api/v1/copies/{id}` | Read copy |
+| POST | `/api/v1/members` | `{"name":"Alex"}` |
 | GET | `/api/v1/members/{id}` | Read member |
-| POST | `/api/v1/loans` | Required `memberId`, `copyId`; delegate checkout to CheckoutService |
+| POST | `/api/v1/loans` | `{"memberId":"<member UUID>","copyId":"<copy UUID>"}` |
 | GET | `/api/v1/loans/{id}` | Read loan |
-| POST | `/api/v1/loans/{id}/return` | Delegate return to ReturnService |
+| POST | `/api/v1/loans/{id}/return` | Return loan; no request body |
+
+Response fields:
+
+- Item: `id`, `title`
+- Copy: `id`, `itemId`
+- Member: `id`, `name`, `status`
+- Loan: `id`, `copyId`, `memberId`, `borrowedOn`, `dueOn`, `returnedOn`, `active`
+
+Dates use ISO calendar dates (`yyyy-MM-dd`); an active loan has `returnedOn: null`.
+Each response record has a small manual `from(...)` mapping method. No nested entities
+or Hibernate proxy metadata are sent to clients. Entity JSON annotations are no longer needed.
+No change to Open EntityManager in View configuration is made in this increment.
 
 Create/checkout responses use 201 with a Location header. Reads and successful returns
-use 200. Controller lookups return 404 when absent; Spring MVC rejects missing required
-parameters and malformed UUIDs with 400. Domain/business exceptions retain default
-server-error handling for now, including a missing loan in ReturnService; the error
-contract is intentionally unfinished until Increment 4.4.
+use 200. Controller lookups return 404 when absent; Spring MVC rejects missing bodies,
+malformed JSON, and malformed UUIDs with 400. Field validation is deferred to Increment 4.3.
+Domain/business exceptions retain default server-error handling for now, including a
+missing loan in ReturnService; the error contract remains deferred to Increment 4.4.
 
-Example: `curl -X POST 'http://localhost:8080/api/v1/items?title=The%20Hobbit'`.
+```sh
+curl -X POST http://localhost:8080/api/v1/items \
+  -H 'Content-Type: application/json' -d '{"title":"The Hobbit"}'
+curl -X POST http://localhost:8080/api/v1/members \
+  -H 'Content-Type: application/json' -d '{"name":"Alex"}'
+```
 
-The temporary entity responses include nested relationships. Jackson ignores Hibernate
-proxy metadata; lazy relationship serialization relies on the current default
-Open EntityManager in View behavior. Review this exposure and fetching strategy when
-introducing DTOs in Increment 4.2. No list/update/delete routes are added yet.
+Use the returned UUIDs in subsequent Copy and checkout request bodies. No new endpoints
+or validation annotations are introduced.
 
 ## Tests and build
 

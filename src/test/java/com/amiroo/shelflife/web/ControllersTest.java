@@ -18,6 +18,10 @@ import com.amiroo.shelflife.lending.ReturnService;
 import com.amiroo.shelflife.membership.Member;
 import com.amiroo.shelflife.membership.MemberController;
 import com.amiroo.shelflife.membership.MemberRepository;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.hibernate.proxy.HibernateProxy;
@@ -55,14 +59,17 @@ class ControllersTest {
     @BeforeEach
     void setUp() {
         mvc = MockMvcBuilders.standaloneSetup(new ItemController(items), new CopyController(copies, items),
-                new MemberController(members), new LoanController(loans, members, copies, checkout, returns)).build();
+                new MemberController(members), new LoanController(loans, members, copies, checkout, returns))
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(Jackson2ObjectMapperBuilder.json()
+                        .featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build()))
+                .build();
     }
 
     @Test
     void createsItemWithServerAssignedId() throws Exception {
         when(items.save(any(Item.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        String body = mvc.perform(post("/api/v1/items").param("title", "The Hobbit"))
+        String body = mvc.perform(post("/api/v1/items").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"The Hobbit\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(header().exists("Location"))
                 .andExpect(jsonPath("$.id").isNotEmpty())
@@ -82,26 +89,29 @@ class ControllersTest {
     void createsCopyForExistingItem() throws Exception {
         when(items.findById(item.getId())).thenReturn(Optional.of(item));
         when(copies.save(any(Copy.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        mvc.perform(post("/api/v1/copies").param("itemId", item.getId().toString()))
+        mvc.perform(post("/api/v1/copies").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"itemId\":\"%s\"}".formatted(item.getId())))
                 .andExpect(status().isCreated()).andExpect(header().exists("Location"))
-                .andExpect(jsonPath("$.item.id").value(item.getId().toString()));
+                .andExpect(jsonPath("$.itemId").value(item.getId().toString()));
     }
 
     @Test
-    void readsCopyAndItem() throws Exception {
+    void readsCopyWithItemIdOnly() throws Exception {
         when(copies.findById(copy.getId())).thenReturn(Optional.of(copy));
         mvc.perform(get("/api/v1/copies/{id}", copy.getId()))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.item.title").value("The Hobbit"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.itemId").value(item.getId().toString()))
+                .andExpect(jsonPath("$.item").doesNotExist());
     }
 
     @Test
-    void excludesHibernateProxyMetadataFromNestedJson() throws Exception {
+    void mapsProxyRelationshipToIdWithoutSerializingItsState() throws Exception {
         Item proxy = new ProxyItem(item.getId(), item.getTitle());
         when(copies.findById(copy.getId())).thenReturn(Optional.of(new Copy(copy.getId(), proxy)));
 
         mvc.perform(get("/api/v1/copies/{id}", copy.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.item.title").value("The Hobbit"))
+                .andExpect(jsonPath("$.itemId").value(item.getId().toString()))
+                .andExpect(jsonPath("$.item").doesNotExist())
                 .andExpect(jsonPath("$.item.hibernateLazyInitializer").doesNotExist())
                 .andExpect(jsonPath("$.item.handler").doesNotExist());
     }
@@ -109,7 +119,7 @@ class ControllersTest {
     @Test
     void createsActiveMember() throws Exception {
         when(members.save(any(Member.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        mvc.perform(post("/api/v1/members").param("name", "Alex"))
+        mvc.perform(post("/api/v1/members").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Alex\"}"))
                 .andExpect(status().isCreated()).andExpect(header().exists("Location"))
                 .andExpect(jsonPath("$.name").value("Alex"))
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
@@ -127,8 +137,8 @@ class ControllersTest {
         when(members.findById(member.getId())).thenReturn(Optional.of(member));
         when(copies.findById(copy.getId())).thenReturn(Optional.of(copy));
         when(checkout.checkout(member, copy)).thenReturn(loan);
-        mvc.perform(post("/api/v1/loans").param("memberId", member.getId().toString())
-                        .param("copyId", copy.getId().toString()))
+        mvc.perform(post("/api/v1/loans").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memberId\":\"%s\",\"copyId\":\"%s\"}".formatted(member.getId(), copy.getId())))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", "/api/v1/loans/" + loan.getId()))
                 .andExpect(jsonPath("$.id").value(loan.getId().toString()));
@@ -141,9 +151,13 @@ class ControllersTest {
         when(loans.findById(loan.getId())).thenReturn(Optional.of(loan));
         mvc.perform(get("/api/v1/loans/{id}", loan.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.copy.item.title").value("The Hobbit"))
-                .andExpect(jsonPath("$.member.name").value("Alex"))
-                .andExpect(jsonPath("$.borrowedOn").isNotEmpty())
+                .andExpect(jsonPath("$.copyId").value(copy.getId().toString()))
+                .andExpect(jsonPath("$.memberId").value(member.getId().toString()))
+                .andExpect(jsonPath("$.copy").doesNotExist())
+                .andExpect(jsonPath("$.member").doesNotExist())
+                .andExpect(jsonPath("$.borrowedOn").value("2026-10-22"))
+                .andExpect(jsonPath("$.dueOn").value("2026-11-05"))
+                .andExpect(jsonPath("$.returnedOn").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.active").value(true));
     }
 
@@ -153,7 +167,9 @@ class ControllersTest {
         when(returns.returnLoan(loan.getId())).thenReturn(loan);
         mvc.perform(post("/api/v1/loans/{id}/return", loan.getId()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.active").value(false))
-                .andExpect(jsonPath("$.returnedOn").isNotEmpty());
+                .andExpect(jsonPath("$.returnedOn").value("2026-11-02"))
+                .andExpect(jsonPath("$.copyId").value(copy.getId().toString()))
+                .andExpect(jsonPath("$.memberId").value(member.getId().toString()));
         verify(returns).returnLoan(loan.getId());
         verifyNoInteractions(loans);
     }
@@ -168,37 +184,45 @@ class ControllersTest {
 
     @Test
     void missingCheckoutMemberPreventsCheckout() throws Exception {
-        mvc.perform(post("/api/v1/loans").param("memberId", member.getId().toString())
-                        .param("copyId", copy.getId().toString())).andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/loans").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memberId\":\"%s\",\"copyId\":\"%s\"}".formatted(member.getId(), copy.getId()))).andExpect(status().isNotFound());
         verifyNoInteractions(checkout);
     }
 
     @Test
     void missingCheckoutCopyPreventsCheckout() throws Exception {
         when(members.findById(member.getId())).thenReturn(Optional.of(member));
-        mvc.perform(post("/api/v1/loans").param("memberId", member.getId().toString())
-                        .param("copyId", copy.getId().toString())).andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/loans").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memberId\":\"%s\",\"copyId\":\"%s\"}".formatted(member.getId(), copy.getId()))).andExpect(status().isNotFound());
         verifyNoInteractions(checkout);
     }
 
     @Test
     void missingCopyItemPreventsCreation() throws Exception {
-        mvc.perform(post("/api/v1/copies").param("itemId", item.getId().toString()))
+        mvc.perform(post("/api/v1/copies").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"itemId\":\"%s\"}".formatted(item.getId())))
                 .andExpect(status().isNotFound());
         verifyNoInteractions(copies);
     }
 
     @Test
-    void missingRequiredParameterOrMalformedUuidReturnsBadRequest() throws Exception {
-        mvc.perform(post("/api/v1/items")).andExpect(status().isBadRequest());
+    void missingBodyOrMalformedUuidReturnsBadRequest() throws Exception {
+        mvc.perform(post("/api/v1/items").contentType(MediaType.APPLICATION_JSON)).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/v1/copies").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"itemId\":\"not-a-uuid\"}")).andExpect(status().isBadRequest());
         mvc.perform(get("/api/v1/loans/not-a-uuid")).andExpect(status().isBadRequest());
     }
 
-    // A small proxy-shaped fixture avoids exposing Mockito's own generated bean properties.
+    // Relationship mapping must read only the identifier, not entity/proxy state.
     public static class ProxyItem extends Item implements HibernateProxy {
 
         public ProxyItem(UUID id, String title) {
             super(id, title);
+        }
+
+        @Override
+        public String getTitle() {
+            throw new AssertionError("Mapping must not read the related Item title");
         }
 
         @Override
