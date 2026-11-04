@@ -2,6 +2,7 @@ package com.amiroo.shelflife.web;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -218,6 +219,33 @@ class ControllersTest {
                 .andExpect(jsonPath("$.id").value(loan.getId().toString()));
         verify(checkout).checkout(member, copy);
         verifyNoInteractions(loans);
+    }
+
+    @Test
+    void listsAllLoansAsResponseDtos() throws Exception {
+        Loan returnedLoan = new Loan(UUID.randomUUID(), copy, member,
+                loan.getBorrowedOn(), loan.getDueOn(), LocalDate.of(2026, 11, 2));
+        when(loans.findAll()).thenReturn(List.of(loan, returnedLoan));
+
+        mvc.perform(get("/api/v1/loans"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(loan.getId().toString()))
+                .andExpect(jsonPath("$[0].copyId").value(copy.getId().toString()))
+                .andExpect(jsonPath("$[0].memberId").value(member.getId().toString()))
+                .andExpect(jsonPath("$[0].active").value(true))
+                .andExpect(jsonPath("$[0].copy").doesNotExist())
+                .andExpect(jsonPath("$[1].id").value(returnedLoan.getId().toString()))
+                .andExpect(jsonPath("$[1].active").value(false));
+    }
+
+    @Test
+    void listsEmptyArrayWhenThereAreNoLoans() throws Exception {
+        when(loans.findAll()).thenReturn(List.of());
+
+        mvc.perform(get("/api/v1/loans"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test

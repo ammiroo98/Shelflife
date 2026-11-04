@@ -79,6 +79,7 @@ IDs and creation fields. New members retain the existing ACTIVE default.
 | GET | `/api/v1/members/{id}` | Read member |
 | POST | `/api/v1/loans` | `{"memberId":"<member UUID>","copyId":"<copy UUID>"}` |
 | GET | `/api/v1/loans/{id}` | Read loan |
+| GET | `/api/v1/loans` | List all active and returned loans as response DTOs; empty array when none exist |
 | POST | `/api/v1/loans/{id}/return` | Return loan; no request body |
 
 Response fields:

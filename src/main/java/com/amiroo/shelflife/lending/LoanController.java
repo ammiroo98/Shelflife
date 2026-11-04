@@ -1,6 +1,7 @@
 package com.amiroo.shelflife.lending;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.validation.Valid;
@@ -50,6 +51,13 @@ public class LoanController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Copy not found: " + copyId));
         Loan loan = checkoutService.checkout(member, copy);
         return ResponseEntity.created(URI.create("/api/v1/loans/" + loan.getId())).body(LoanResponse.from(loan));
+    }
+
+    @GetMapping
+    public List<LoanResponse> findAll() {
+        return repository.findAll().stream()
+                .map(LoanResponse::from)
+                .toList();
     }
 
     @GetMapping("/{id}")
