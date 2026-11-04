@@ -95,7 +95,9 @@ No change to Open EntityManager in View configuration is made in this increment.
 
 Create/checkout responses use 201 with a Location header. Reads and successful returns
 use 200. Controller lookups return 404 when absent; Spring MVC rejects missing bodies,
-malformed JSON, and malformed UUIDs with 400. Field validation is deferred to Increment 4.3.
+malformed JSON, and malformed UUIDs with 400. Request DTO validation also returns 400
+for missing/null/blank Item titles and Member names, or missing/null Copy item IDs
+and checkout member/copy IDs. Existing domain validation remains in place.
 Domain/business exceptions retain default server-error handling for now, including a
 missing loan in ReturnService; the error contract remains deferred to Increment 4.4.
 
@@ -106,8 +108,17 @@ curl -X POST http://localhost:8080/api/v1/members \
   -H 'Content-Type: application/json' -d '{"name":"Alex"}'
 ```
 
-Use the returned UUIDs in subsequent Copy and checkout request bodies. No new endpoints
-or validation annotations are introduced.
+Use the returned UUIDs in subsequent Copy and checkout request bodies.
+
+For example, a blank title fails Bean Validation before the controller runs:
+
+```sh
+curl -i -X POST http://localhost:8080/api/v1/items \
+  -H 'Content-Type: application/json' -d '{"title":"   "}'
+```
+
+Expected status: `400 Bad Request`. No Item is saved. Error bodies retain Spring's
+default handling; a consistent error format is deferred to Increment 4.4.
 
 ## Tests and build
 

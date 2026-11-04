@@ -1,4 +1,6 @@
 package com.amiroo.shelflife.membership.dto;
 
-public record CreateMemberRequest(String name) {
+import jakarta.validation.constraints.NotBlank;
+
+public record CreateMemberRequest(@NotBlank String name) {
 }

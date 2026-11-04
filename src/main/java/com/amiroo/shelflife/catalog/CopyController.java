@@ -3,6 +3,8 @@ package com.amiroo.shelflife.catalog;
 import java.net.URI;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
+
 import com.amiroo.shelflife.catalog.dto.CreateCopyRequest;
 import com.amiroo.shelflife.catalog.dto.CopyResponse;
 import org.springframework.http.HttpStatus;
@@ -28,7 +30,7 @@ public class CopyController {
     }
 
     @PostMapping
-    public ResponseEntity<CopyResponse> create(@RequestBody CreateCopyRequest request) {
+    public ResponseEntity<CopyResponse> create(@Valid @RequestBody CreateCopyRequest request) {
         UUID itemId = request.itemId();
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found: " + itemId));

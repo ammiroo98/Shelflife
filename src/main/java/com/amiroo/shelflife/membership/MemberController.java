@@ -3,6 +3,8 @@ package com.amiroo.shelflife.membership;
 import java.net.URI;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
+
 import com.amiroo.shelflife.membership.dto.CreateMemberRequest;
 import com.amiroo.shelflife.membership.dto.MemberResponse;
 import org.springframework.http.HttpStatus;
@@ -26,7 +28,7 @@ public class MemberController {
     }
 
     @PostMapping
-    public ResponseEntity<MemberResponse> create(@RequestBody CreateMemberRequest request) {
+    public ResponseEntity<MemberResponse> create(@Valid @RequestBody CreateMemberRequest request) {
         Member saved = repository.save(new Member(UUID.randomUUID(), request.name()));
         return ResponseEntity.created(URI.create("/api/v1/members/" + saved.getId())).body(MemberResponse.from(saved));
     }

@@ -2,5 +2,7 @@ package com.amiroo.shelflife.catalog.dto;
 
 import java.util.UUID;
 
-public record CreateCopyRequest(UUID itemId) {
+import jakarta.validation.constraints.NotNull;
+
+public record CreateCopyRequest(@NotNull UUID itemId) {
 }

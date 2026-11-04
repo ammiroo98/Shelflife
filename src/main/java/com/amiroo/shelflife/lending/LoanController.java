@@ -3,6 +3,8 @@ package com.amiroo.shelflife.lending;
 import java.net.URI;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
+
 import com.amiroo.shelflife.lending.dto.CheckoutRequest;
 import com.amiroo.shelflife.lending.dto.LoanResponse;
 import com.amiroo.shelflife.catalog.Copy;
@@ -39,7 +41,7 @@ public class LoanController {
     }
 
     @PostMapping
-    public ResponseEntity<LoanResponse> checkout(@RequestBody CheckoutRequest request) {
+    public ResponseEntity<LoanResponse> checkout(@Valid @RequestBody CheckoutRequest request) {
         UUID memberId = request.memberId();
         UUID copyId = request.copyId();
         Member member = memberRepository.findById(memberId)

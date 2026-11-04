@@ -3,6 +3,7 @@ package com.amiroo.shelflife.web;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import com.amiroo.shelflife.catalog.Copy;
 import com.amiroo.shelflife.catalog.CopyController;
@@ -24,10 +25,14 @@ import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.hibernate.proxy.HibernateProxy;
 import org.hibernate.proxy.LazyInitializer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -211,6 +216,38 @@ class ControllersTest {
         mvc.perform(post("/api/v1/copies").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"itemId\":\"not-a-uuid\"}")).andExpect(status().isBadRequest());
         mvc.perform(get("/api/v1/loans/not-a-uuid")).andExpect(status().isBadRequest());
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidRequests")
+    void invalidFieldsReturnBadRequestBeforeAnyRepositoryOrServiceAccess(String path, String body) throws Exception {
+        mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(result -> assertThat(result.getResolvedException())
+                        .isInstanceOf(MethodArgumentNotValidException.class));
+        verifyNoInteractions(items, copies, members, loans, checkout, returns);
+    }
+
+    static Stream<Arguments> invalidRequests() {
+        String id = "00000000-0000-0000-0000-000000000001";
+        return Stream.of(
+                Arguments.of("/api/v1/items", "{}"),
+                Arguments.of("/api/v1/items", "{\"title\":null}"),
+                Arguments.of("/api/v1/items", "{\"title\":\"\"}"),
+                Arguments.of("/api/v1/items", "{\"title\":\"   \"}"),
+                Arguments.of("/api/v1/items", "{\"title\":\"\\t\\n\"}"),
+                Arguments.of("/api/v1/members", "{}"),
+                Arguments.of("/api/v1/members", "{\"name\":null}"),
+                Arguments.of("/api/v1/members", "{\"name\":\"\"}"),
+                Arguments.of("/api/v1/members", "{\"name\":\"   \"}"),
+                Arguments.of("/api/v1/members", "{\"name\":\"\\t\\n\"}"),
+                Arguments.of("/api/v1/copies", "{}"),
+                Arguments.of("/api/v1/copies", "{\"itemId\":null}"),
+                Arguments.of("/api/v1/loans", "{}"),
+                Arguments.of("/api/v1/loans", "{\"copyId\":\"%s\"}".formatted(id)),
+                Arguments.of("/api/v1/loans", "{\"memberId\":\"%s\"}".formatted(id)),
+                Arguments.of("/api/v1/loans", "{\"memberId\":null,\"copyId\":\"%s\"}".formatted(id)),
+                Arguments.of("/api/v1/loans", "{\"memberId\":\"%s\",\"copyId\":null}".formatted(id)));
     }
 
     // Relationship mapping must read only the identifier, not entity/proxy state.

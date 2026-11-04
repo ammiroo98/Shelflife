@@ -3,6 +3,8 @@ package com.amiroo.shelflife.catalog;
 import java.net.URI;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
+
 import com.amiroo.shelflife.catalog.dto.CreateItemRequest;
 import com.amiroo.shelflife.catalog.dto.ItemResponse;
 import org.springframework.http.HttpStatus;
@@ -26,7 +28,7 @@ public class ItemController {
     }
 
     @PostMapping
-    public ResponseEntity<ItemResponse> create(@RequestBody CreateItemRequest request) {
+    public ResponseEntity<ItemResponse> create(@Valid @RequestBody CreateItemRequest request) {
         Item saved = repository.save(new Item(UUID.randomUUID(), request.title()));
         return ResponseEntity.created(URI.create("/api/v1/items/" + saved.getId())).body(ItemResponse.from(saved));
     }
