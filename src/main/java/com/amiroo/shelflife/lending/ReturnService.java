@@ -23,7 +23,7 @@ public class ReturnService {
     public Loan returnLoan(UUID loanId) {
         Objects.requireNonNull(loanId, "loanId");
         Loan loan = loanRepository.findById(loanId)
-                .orElseThrow(() -> new BorrowingException("Loan not found: " + loanId));
+                .orElseThrow(() -> new LoanNotFoundException(loanId));
         loan.returnOn(LocalDate.now(clock));
         return loan;
     }

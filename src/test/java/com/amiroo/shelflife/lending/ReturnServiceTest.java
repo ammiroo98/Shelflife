@@ -48,12 +48,12 @@ class ReturnServiceTest {
     }
 
     @Test
-    void missingLoanProducesClearBorrowingException() {
+    void missingLoanProducesLoanNotFoundException() {
         UUID loanId = UUID.randomUUID();
         when(repository.findById(loanId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.returnLoan(loanId))
-                .isInstanceOf(BorrowingException.class)
+                .isInstanceOf(LoanNotFoundException.class)
                 .hasMessage("Loan not found: " + loanId);
     }
 

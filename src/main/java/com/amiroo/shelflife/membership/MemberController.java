@@ -1,6 +1,7 @@
 package com.amiroo.shelflife.membership;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.validation.Valid;
@@ -31,6 +32,11 @@ public class MemberController {
     public ResponseEntity<MemberResponse> create(@Valid @RequestBody CreateMemberRequest request) {
         Member saved = repository.save(new Member(UUID.randomUUID(), request.name()));
         return ResponseEntity.created(URI.create("/api/v1/members/" + saved.getId())).body(MemberResponse.from(saved));
+    }
+
+    @GetMapping
+    public List<MemberResponse> findAll() {
+        return repository.findAll().stream().map(MemberResponse::from).toList();
     }
 
     @GetMapping("/{id}")

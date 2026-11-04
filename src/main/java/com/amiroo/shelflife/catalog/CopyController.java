@@ -1,6 +1,7 @@
 package com.amiroo.shelflife.catalog;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.validation.Valid;
@@ -36,6 +37,11 @@ public class CopyController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found: " + itemId));
         Copy saved = repository.save(new Copy(UUID.randomUUID(), item));
         return ResponseEntity.created(URI.create("/api/v1/copies/" + saved.getId())).body(CopyResponse.from(saved));
+    }
+
+    @GetMapping
+    public List<CopyResponse> findAll() {
+        return repository.findAll().stream().map(CopyResponse::from).toList();
     }
 
     @GetMapping("/{id}")

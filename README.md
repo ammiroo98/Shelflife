@@ -14,7 +14,7 @@ does not exercise transactions.
 ReturnService loads a Loan by UUID in a Spring transaction and delegates to
 `Loan.returnOn(LocalDate.now(clock))`. Hibernate dirty checking writes the changed
 return date at transaction commit; the service does not call `save` or flush manually.
-Missing loans produce a BorrowingException. Return concurrency protection is deferred.
+Missing loans produce a LoanNotFoundException. Return concurrency protection is deferred.
 
 Borrowing configuration in `application.properties`:
 
@@ -98,8 +98,8 @@ use 200. Controller lookups return 404 when absent; Spring MVC rejects missing b
 malformed JSON, and malformed UUIDs with 400. Request DTO validation also returns 400
 for missing/null/blank Item titles and Member names, or missing/null Copy item IDs
 and checkout member/copy IDs. Existing domain validation remains in place.
-Domain/business exceptions retain default server-error handling for now, including a
-missing loan in ReturnService; the error contract remains deferred to Increment 4.4.
+BorrowingException maps to 409 Conflict. LoanNotFoundException maps to 404, including
+missing return loans. Existing ResponseStatusException statuses and lookup reasons are preserved.
 
 ```sh
 curl -X POST http://localhost:8080/api/v1/items \
@@ -117,8 +117,25 @@ curl -i -X POST http://localhost:8080/api/v1/items \
   -H 'Content-Type: application/json' -d '{"title":"   "}'
 ```
 
-Expected status: `400 Bad Request`. No Item is saved. Error bodies retain Spring's
-default handling; a consistent error format is deferred to Increment 4.4.
+Expected status: `400 Bad Request`. No Item is saved. API errors handled by the advice
+use `status`, `error`, and `message`, with `fieldErrors` added for DTO validation:
+
+```json
+{"status":400,"error":"Bad Request","message":"Request validation failed.","fieldErrors":[{"field":"title","message":"must not be blank"}]}
+```
+
+Business conflict and missing-loan examples:
+
+```json
+{"status":409,"error":"Conflict","message":"Copy already has an active loan."}
+{"status":404,"error":"Not Found","message":"Loan not found: <loan UUID>"}
+```
+
+Malformed/missing JSON bodies (including invalid JSON UUID values) and invalid UUID
+path parameters return concise 400 responses. Validation responses omit rejected values;
+none of these responses includes stack traces. Constraint messages use the validation
+provider's locale. Unexpected programming errors are not converted into client errors
+by a catch-all handler and retain Spring Boot's server-error handling.
 
 ## Tests and build
 

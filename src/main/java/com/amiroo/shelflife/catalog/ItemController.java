@@ -1,6 +1,7 @@
 package com.amiroo.shelflife.catalog;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.validation.Valid;
@@ -31,6 +32,11 @@ public class ItemController {
     public ResponseEntity<ItemResponse> create(@Valid @RequestBody CreateItemRequest request) {
         Item saved = repository.save(new Item(UUID.randomUUID(), request.title()));
         return ResponseEntity.created(URI.create("/api/v1/items/" + saved.getId())).body(ItemResponse.from(saved));
+    }
+
+    @GetMapping
+    public List<ItemResponse> findAll() {
+        return repository.findAll().stream().map(ItemResponse::from).toList();
     }
 
     @GetMapping("/{id}")
