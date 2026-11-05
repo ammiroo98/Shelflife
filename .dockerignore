@@ -1,0 +1,26 @@
+target/
+.git/
+
+# IDE and operating-system files
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+.DS_Store
+
+# Local secrets and machine-specific configuration
+.env
+.env.*
+.aws/
+.codex/
+.agents/
+secrets/
+.secrets/
+**/*.pem
+**/*.key
+**/*.p12
+**/*.jks
+**/application-local.*
+**/application-secrets.*
