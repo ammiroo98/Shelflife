@@ -1,166 +1,91 @@
 # ShelfLife
 
-A Java 21 / Spring Boot 3.5.13 library management application.
-`Item`, `Copy`, `Member`, and `Loan` are persisted. Each Copy references one required Item.
-Each Loan references one required Copy and Member, with no cascade persistence.
-Member status is stored by enum name (`ACTIVE` or `SUSPENDED`), not ordinal.
+[![ShelfLife CI](https://github.com/ammiroo98/Shelflife/actions/workflows/ci.yml/badge.svg)](https://github.com/ammiroo98/Shelflife/actions/workflows/ci.yml)
 
-CheckoutService is a Spring service. Its transactional checkout checks stored active-loan
-counts and copy availability, then saves and returns the new Loan through LoanRepository.
-It does not yet protect against concurrent checkout attempts. Call it through the
-Spring-managed bean for transaction interception; direct construction in unit tests
-does not exercise transactions.
+ShelfLife is a REST API for a small library. I built it to practice designing a Spring Boot backend, storing related data in PostgreSQL, and testing the rules for checking out and returning books.
 
-ReturnService loads a Loan by UUID in a Spring transaction and delegates to
-`Loan.returnOn(LocalDate.now(clock))`. Hibernate dirty checking writes the changed
-return date at transaction commit; the service does not call `save` or flush manually.
-Missing loans produce a LoanNotFoundException. Return concurrency protection is deferred.
+## What it does
 
-Borrowing configuration in `application.properties`:
+- Create and look up catalog items, physical copies, and members. An item is the catalog entry; each copy belongs to one item.
+- Check out a copy to a member, return it, and look up current or past loans.
+- Reject checkout if the member is suspended, has reached the active loan limit, or the copy is already on loan. New members start as active; there is no endpoint to change their status.
+- Allow up to **two active loans per member** by default, with a **14-day loan period**. Both settings are in [application.properties](src/main/resources/application.properties).
+- Keep returned loans in the database. A loan is active until its return date is set. Late returns are allowed, but returning the same loan twice is rejected.
 
-- `shelflife.lending.max-active-loans=2`
-- `shelflife.lending.loan-duration-days=14`
+## How it's built
 
-Both values must be positive and can be overridden with Spring configuration.
-The injected application Clock uses the JVM's default time zone; tests use a fixed Clock.
+- **Java 21, Spring Boot 3.5, and Maven:** Spring MVC handles HTTP requests, and the Maven Wrapper pins the Maven version.
+- **Spring Data JPA, Hibernate, and PostgreSQL 17:** Repositories store catalog entries, copies, members, and loans. Hibernate updates the development schema on startup using `ddl-auto=update`.
+- **Docker and Docker Compose:** The Dockerfile builds the JAR with Maven and runs it in a Java 21 runtime image. Compose runs the API and PostgreSQL together.
+- **JUnit 5, Mockito, and MockMvc:** Tests cover domain rules, lending services, and HTTP responses, with optional tests against PostgreSQL.
 
-## Requirements
+The code is split into `catalog`, `membership`, `lending`, and `web` packages. Controllers validate request records and return response records with IDs for related resources. Simple reads and creates use repositories directly. Checkout and return go through transactional services: checkout checks the stored loans before saving a new one, and return updates the existing loan inside the transaction. Two checkout requests for the same copy can still both succeed if they arrive at the same time. The transactions do not yet prevent that race condition.
 
-- JDK 21 with `JAVA_HOME` configured
-- Maven Wrapper included (Maven 3.9.11)
-- Internet access for initial dependency downloads
-- A running PostgreSQL server and an existing database/user for application startup
+## Run with Docker Compose
 
-## Database configuration
+Install Docker with the Compose plugin. You don't need Java, Maven, or a separate PostgreSQL installation for this setup. Make sure port 8080 is free.
 
-| Environment variable | Default | Purpose |
+From the repository root, enter a local database password in Bash or Zsh. The prompt keeps the password out of your shell history, and the export makes it available to Compose. Don't put a real password in the repository.
+
+```sh
+printf 'Local database password: '
+IFS= read -rs DB_PASSWORD
+printf '\n'
+export DB_PASSWORD
+
+docker compose up -d --build
+```
+
+The API is available at `http://localhost:8080/api/v1`. Compose starts the app after the database passes its health check. To check startup logs, run `docker compose logs -f app`.
+
+Stop the stack from the same shell:
+
+```sh
+docker compose down
+```
+
+PostgreSQL data stays in the named volume. Use the same password on later starts: PostgreSQL uses it when it first initializes the volume.
+
+## API
+
+All paths below start with `/api/v1`. Send JSON bodies with `Content-Type: application/json`. Use the IDs returned by the create endpoints for later requests.
+
+| Method | Path | Purpose or example request body |
 | --- | --- | --- |
-| `DB_URL` | `jdbc:postgresql://localhost:5432/shelflife` | JDBC connection URL |
-| `DB_USERNAME` | `shelflife` | Database user |
-| `DB_PASSWORD` | None; must be supplied | Database password |
-| `SHELFLIFE_POSTGRES_TESTS` | Unset; database tests skipped | Set to exactly `true` to run database tests |
+| POST | `/items` | Create an item: `{"title":"The Hobbit"}` |
+| GET | `/items`, `/items/{id}` | List items or read one item |
+| POST | `/copies` | Add a physical copy: `{"itemId":"<item UUID>"}` |
+| GET | `/copies`, `/copies/{id}` | List copies or read one copy |
+| POST | `/members` | Register a member: `{"name":"Alex"}` |
+| GET | `/members`, `/members/{id}` | List members or read one member |
+| POST | `/loans` | Check out a copy: `{"memberId":"<member UUID>","copyId":"<copy UUID>"}` |
+| GET | `/loans`, `/loans/{id}` | List active and returned loans or read one loan |
+| POST | `/loans/{id}/return` | Return a loan; no request body |
 
-Provide the password through your shell or IDE environment; do not commit credentials.
-For example, in zsh, `read -rs 'DB_PASSWORD?Database password: '` followed by
-`export DB_PASSWORD` reads the password without displaying it or putting it in shell history.
-Set `DB_URL` and `DB_USERNAME` if your local setup differs from the defaults.
-
-Hibernate uses `spring.jpa.hibernate.ddl-auto=update`: on context startup it compares
-entity mappings with the existing schema and attempts to create/update mapped tables.
-It does not create the PostgreSQL database or user. The user needs schema modification privileges.
-This is a development convenience, not a versioned, reviewable migration history;
-it is not a reliable way to handle every schema change or production rollout.
-No migration tool or manual schema script is included.
-
-## Run
-
-After configuring the database environment:
+For example, create an item with:
 
 ```sh
-./mvnw spring-boot:run
+curl -i http://localhost:8080/api/v1/items \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"The Hobbit"}'
 ```
 
-The application starts on port 8080. Stop with Ctrl+C.
+Creates and checkouts return `201 Created` with a `Location` header. Reads and returns return `200 OK`; an empty list is `[]`. Invalid input returns `400`, missing resources return `404`, and borrowing conflicts return `409`. Error bodies include `status`, `error`, and `message`, with `fieldErrors` for request validation failures.
 
-## Basic REST API
+## Tests and CI
 
-All routes use `/api/v1`. Creation and checkout accept JSON request bodies with
-`Content-Type: application/json`. Read/creation/return responses are flat JSON DTOs,
-not JPA entities. IDs are assigned by the application; clients supply only relationship
-IDs and creation fields. New members retain the existing ACTIVE default.
-
-| Method | Path | JSON request / purpose |
-| --- | --- | --- |
-| POST | `/api/v1/items` | `{"title":"The Hobbit"}` |
-| GET | `/api/v1/items/{id}` | Read item |
-| POST | `/api/v1/copies` | `{"itemId":"<item UUID>"}` |
-| GET | `/api/v1/copies/{id}` | Read copy |
-| POST | `/api/v1/members` | `{"name":"Alex"}` |
-| GET | `/api/v1/members/{id}` | Read member |
-| POST | `/api/v1/loans` | `{"memberId":"<member UUID>","copyId":"<copy UUID>"}` |
-| GET | `/api/v1/loans/{id}` | Read loan |
-| GET | `/api/v1/loans` | List all active and returned loans as response DTOs; empty array when none exist |
-| POST | `/api/v1/loans/{id}/return` | Return loan; no request body |
-
-Response fields:
-
-- Item: `id`, `title`
-- Copy: `id`, `itemId`
-- Member: `id`, `name`, `status`
-- Loan: `id`, `copyId`, `memberId`, `borrowedOn`, `dueOn`, `returnedOn`, `active`
-
-Dates use ISO calendar dates (`yyyy-MM-dd`); an active loan has `returnedOn: null`.
-Each response record has a small manual `from(...)` mapping method. No nested entities
-or Hibernate proxy metadata are sent to clients. Entity JSON annotations are no longer needed.
-No change to Open EntityManager in View configuration is made in this increment.
-
-Create/checkout responses use 201 with a Location header. Reads and successful returns
-use 200. Controller lookups return 404 when absent; Spring MVC rejects missing bodies,
-malformed JSON, and malformed UUIDs with 400. Request DTO validation also returns 400
-for missing/null/blank Item titles and Member names, or missing/null Copy item IDs
-and checkout member/copy IDs. Existing domain validation remains in place.
-BorrowingException maps to 409 Conflict. LoanNotFoundException maps to 404, including
-missing return loans. Existing ResponseStatusException statuses and lookup reasons are preserved.
-
-```sh
-curl -X POST http://localhost:8080/api/v1/items \
-  -H 'Content-Type: application/json' -d '{"title":"The Hobbit"}'
-curl -X POST http://localhost:8080/api/v1/members \
-  -H 'Content-Type: application/json' -d '{"name":"Alex"}'
-```
-
-Use the returned UUIDs in subsequent Copy and checkout request bodies.
-
-For example, a blank title fails Bean Validation before the controller runs:
-
-```sh
-curl -i -X POST http://localhost:8080/api/v1/items \
-  -H 'Content-Type: application/json' -d '{"title":"   "}'
-```
-
-Expected status: `400 Bad Request`. No Item is saved. API errors handled by the advice
-use `status`, `error`, and `message`, with `fieldErrors` added for DTO validation:
-
-```json
-{"status":400,"error":"Bad Request","message":"Request validation failed.","fieldErrors":[{"field":"title","message":"must not be blank"}]}
-```
-
-Business conflict and missing-loan examples:
-
-```json
-{"status":409,"error":"Conflict","message":"Copy already has an active loan."}
-{"status":404,"error":"Not Found","message":"Loan not found: <loan UUID>"}
-```
-
-Malformed/missing JSON bodies (including invalid JSON UUID values) and invalid UUID
-path parameters return concise 400 responses. Validation responses omit rejected values;
-none of these responses includes stack traces. Constraint messages use the validation
-provider's locale. Unexpected programming errors are not converted into client errors
-by a catch-all handler and retain Spring Boot's server-error handling.
-
-## Tests and build
+With a Java 21 JDK installed, run:
 
 ```sh
 ./mvnw clean verify
 ```
 
-The normal build runs plain domain/business tests without PostgreSQL.
-The complete Spring context test and real PostgreSQL repository tests are explicitly
-skipped unless `SHELFLIFE_POSTGRES_TESTS=true`.
-A successful normal build therefore does not verify persistence or application startup.
+On Windows, use `mvnw.cmd`. The default build runs the domain, service, and MVC tests without a database.
 
-To run all tests, configure `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` for a dedicated,
-existing PostgreSQL test database, then run:
+The repository tests and Spring context test are optional. To run them, use a dedicated PostgreSQL test database reachable from your host. Set `DB_URL` to its JDBC URL, `DB_USERNAME` to its user, and export `DB_PASSWORD` using the prompt above. The Compose database does not publish a host port, so it is not directly available to the host test command. The test user needs permission to update the test schema.
 
 ```sh
 SHELFLIFE_POSTGRES_TESTS=true ./mvnw clean verify
 ```
 
-The repository tests save, flush, clear the persistence context, and reload entities
-to verify database round trips with caller-assigned UUIDs, including the Copy-to-Item
-relationship, a suspended Member's status, and an active Loan's dates and relationships.
-They use the real database with no embedded replacement.
-Their data transactions roll back, but Hibernate schema
-updates can remain, so use a dedicated test database.
-
-On Windows, use `mvnw.cmd` in place of `./mvnw` and set environment variables using your shell.
+[GitHub Actions](.github/workflows/ci.yml) runs on pushes and pull requests. It sets up Temurin Java 21 on Ubuntu, caches Maven dependencies, and runs `./mvnw -B clean verify`. The workflow does not start PostgreSQL, so the optional database tests are skipped in CI.
